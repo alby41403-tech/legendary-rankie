@@ -65,11 +65,8 @@ CSV_URL = "https://raw.githubusercontent.com/alby41403-tech/legendary-rankie/ref
 @st.cache_data
 def load_and_process_data(url):
     df = pd.read_csv(url)
-
-    # Clean whitespace from column headers
     df.columns = df.columns.str.strip()
 
-    # Flexible matching for columns
     rename_dict = {}
     for col in df.columns:
         c_lower = col.lower()
@@ -85,12 +82,9 @@ def load_and_process_data(url):
             rename_dict[col] = "Name"
         elif "board" in c_lower:
             rename_dict[col] = "Board"
-        elif "index" in c_lower:
-            rename_dict[col] = "Original Index"
 
     df = df.rename(columns=rename_dict)
 
-    # Ensure required mark columns exist
     for col in ["Biology", "Physics", "Chemistry"]:
         if col not in df.columns:
             df[col] = 0.0
@@ -100,7 +94,6 @@ def load_and_process_data(url):
                 errors="coerce",
             ).fillna(0)
 
-    # Calculate index mark out of 300
     df["Converted_Bio"] = (df["Biology"] / 120.0) * 100
     df["Converted_Phy"] = (df["Physics"] / 120.0) * 100
     df["Converted_Chem"] = (df["Chemistry"] / 120.0) * 100
@@ -119,8 +112,8 @@ with st.spinner("Loading and processing national rank list records..."):
     df = load_and_process_data(CSV_URL)
 
 if df is not None:
+    # Ensure a Status column exists safely
     if "Status" not in df.columns:
-        # Check if any status-like column exists
         found_status = False
         for col in df.columns:
             if "status" in col.lower():
@@ -161,7 +154,7 @@ if df is not None:
                 unsafe_allow_html=True,
             )
             view_df = df[
-                df["Status"].astype(str).str.contains("Accept|Pend", case=False, na=False)
+                ~df["Status"].astype(str).str.contains("Reject", case=False, na=False)
             ]
         else:
             st.markdown("## ❌ Rejected Applicants List")
@@ -193,13 +186,6 @@ if df is not None:
 
         st.markdown(f"**Total records displayed:** {len(display_df)}")
 
-
-        def highlight_pending(row):
-            if "pend" in str(row.get("Status", "")).lower():
-                return ["background-color: #FEE2E2"] * len(row)
-            return [""] * len(row)
-
-
         if not display_df.empty:
             columns_to_show = [
                 col
@@ -215,13 +201,21 @@ if df is not None:
                 ]
                 if col in display_df.columns
             ]
-            styled_table = display_df[columns_to_show].style.apply(
-                highlight_pending, axis=1
-            )
-            st.dataframe(styled_table, use_container_width=True, hide_index=True)
+            
+            # Safe styling check
+            def highlight_pending(s):
+                return [
+                    "background-color: #FEE2E2"
+                    if "pend" in str(display_df.loc[s.index, "Status"]).lower()
+                    else ""
+                    for _ in s
+                ]
+
+            try:
+                styled_table = display_df[columns_to_show].style.apply(highlight_pending, axis=1)
+                st.dataframe(styled_table, use_container_width=True, hide_index=True)
+            except Exception:
+                st.dataframe(display_df[columns_to_show], use_container_width=True, hide_index=True)
         else:
             st.info("No records available in this view.")
             
-                
-
-        
