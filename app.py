@@ -38,7 +38,6 @@ st.markdown(
         color: #FFFFFF !important;
         border-color: #000000 !important;
     }
-    /* Force horizontal side-by-side layout for category buttons */
     .row-widget.stHorizontal {
         display: flex !important;
         flex-direction: row !important;
@@ -161,7 +160,6 @@ if df is not None:
             unsafe_allow_html=True,
         )
         
-        # Horizontal side-by-side columns
         col1, col2 = st.columns(2, gap="medium")
         with col1:
             if st.button("📋 Accepted / Pending List"):
@@ -181,7 +179,7 @@ if df is not None:
             st.markdown(
                 """
                 <div class="legend-box">
-                    <strong>🔴 Color Legend Notice:</strong> Rows outlined with a <span style="color: #DC2626; font-weight: bold;">Soft Red Border</span> indicate applicants whose status is currently <strong>Pending</strong>.
+                    <strong>🔴 Color Legend Notice:</strong> Entire rows highlighted in <span style="color: #DC2626; font-weight: bold;">Soft Red</span> indicate applicants whose status is currently <strong>Pending</strong>.
                 </div>
             """,
                 unsafe_allow_html=True,
@@ -196,7 +194,6 @@ if df is not None:
             ]
 
         st.markdown("---")
-        # Search input with placeholder text inside
         search_query = st.text_input(
             label="",
             placeholder="🔍 Enter your application number"
@@ -230,17 +227,19 @@ if df is not None:
             ]
             columns_to_show = [col for col in desired_columns if col in display_df.columns]
             
-            # Highlight pending rows with soft red borders instead of blocking background fill
-            def highlight_pending_border(row_data):
-                idx = row_data.name
-                if idx in view_df.index:
-                    status_val = str(view_df.loc[idx, "Status"]).lower()
+            # Highlight entire row background for pending applicants
+            def highlight_entire_pending_row(row):
+                # Check status from the underlying view_df based on Application No
+                app_no = row["Application No"]
+                match = view_df[view_df["Application No"] == app_no]
+                if not match.empty:
+                    status_val = str(match["Status"].values[0]).lower()
                     if "pend" in status_val:
-                        return ["border-left: 4px solid #DC2626; border-right: 4px solid #DC2626;"] * len(row_data)
-                return [""] * len(row_data)
+                        return ["background-color: #FEE2E2; color: #111111;"] * len(row)
+                return [""] * len(row)
 
             try:
-                styled_table = display_df[columns_to_show].style.apply(highlight_pending_border, axis=1)
+                styled_table = display_df[columns_to_show].style.apply(highlight_entire_pending_row, axis=1)
                 st.dataframe(styled_table, use_container_width=True, hide_index=True)
             except Exception:
                 st.dataframe(display_df[columns_to_show], use_container_width=True, hide_index=True)
