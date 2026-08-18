@@ -67,23 +67,35 @@ def load_and_process_data(url):
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip()
 
-    rename_dict = {}
+    # Carefully rename only unmapped columns by position or safe keywords to prevent duplicates
+    new_cols = []
+    seen = set()
     for col in df.columns:
         c_lower = col.lower()
-        if "bio" in c_lower:
-            rename_dict[col] = "Biology"
-        elif "phy" in c_lower:
-            rename_dict[col] = "Physics"
-        elif "chem" in c_lower:
-            rename_dict[col] = "Chemistry"
-        elif "app" in c_lower:
-            rename_dict[col] = "Application No"
-        elif "name" in c_lower:
-            rename_dict[col] = "Name"
-        elif "board" in c_lower:
-            rename_dict[col] = "Board"
+        target = col
+        if "bio" in c_lower and "Biology" not in seen:
+            target = "Biology"
+        elif "phy" in c_lower and "Physics" not in seen:
+            target = "Physics"
+        elif "chem" in c_lower and "Chemistry" not in seen:
+            target = "Chemistry"
+        elif ("app" in c_lower or "application" in c_lower) and "Application No" not in seen:
+            target = "Application No"
+        elif "name" in c_lower and "Name" not in seen:
+            target = "Name"
+        elif "board" in c_lower and "Board" not in seen:
+            target = "Board"
+        
+        # Ensure uniqueness
+        base_target = target
+        counter = 1
+        while target in seen:
+            target = f"{base_target}_{counter}"
+            counter += 1
+        seen.add(target)
+        new_cols.append(target)
 
-    df = df.rename(columns=rename_dict)
+    df.columns = new_cols
 
     for col in ["Biology", "Physics", "Chemistry"]:
         if col not in df.columns:
@@ -101,9 +113,11 @@ def load_and_process_data(url):
     df["Calculated_Index_Mark"] = (
         df["Converted_Bio"] + df["Converted_Phy"] + df["Converted_Chem"]
     ).round(2)
+    
     df = df.sort_values(
         by="Calculated_Index_Mark", ascending=False
     ).reset_index(drop=True)
+    
     df["S. No"] = range(1, len(df) + 1)
     return df
 
@@ -112,7 +126,6 @@ with st.spinner("Loading and processing national rank list records..."):
     df = load_and_process_data(CSV_URL)
 
 if df is not None:
-    # Ensure a Status column exists safely
     if "Status" not in df.columns:
         found_status = False
         for col in df.columns:
@@ -201,21 +214,8 @@ if df is not None:
                 ]
                 if col in display_df.columns
             ]
-            
-            # Safe styling check
-            def highlight_pending(s):
-                return [
-                    "background-color: #FEE2E2"
-                    if "pend" in str(display_df.loc[s.index, "Status"]).lower()
-                    else ""
-                    for _ in s
-                ]
-
-            try:
-                styled_table = display_df[columns_to_show].style.apply(highlight_pending, axis=1)
-                st.dataframe(styled_table, use_container_width=True, hide_index=True)
-            except Exception:
-                st.dataframe(display_df[columns_to_show], use_container_width=True, hide_index=True)
+            st.dataframe(display_df[columns_to_show], use_container_width=True, hide_index=True)
         else:
             st.info("No records available in this view.")
+            
             
