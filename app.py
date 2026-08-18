@@ -24,13 +24,6 @@ st.markdown(
         border-bottom: 3px solid #DC2626;
         padding-bottom: 1rem;
     }
-    /* Force horizontal side-by-side buttons even on mobile screens */
-    .row-widget.stHorizontal {
-        display: flex !important;
-        flex-direction: row !important;
-        justify-content: center !important;
-        align-items: center !important;
-    }
     .stButton>button {
         background-color: #000000 !important;
         color: #FFFFFF !important;
@@ -92,7 +85,6 @@ def load_and_process_data(url):
 
     df = df.rename(columns=col_map)
 
-    # Correct parser for concatenated numbers like 97100 (97 out of 100) or 120120 (120 out of 120)
     def parse_and_normalize_mark(val):
         s_val = str(val).strip()
         cleaned = "".join([c for c in s_val if c.isdigit() or c == '.'])
@@ -104,27 +96,24 @@ def load_and_process_data(url):
         except:
             return 0.0
 
-        # If the number is concatenated (e.g., 5 digits like 97100 or 6 digits like 120120)
-        # We split it neatly into secured score and total denominator base
         str_num = str(int(num)) if num.is_integer() else str(num)
         
-        if len(str_num) == 5:  # e.g., 97100 -> score 97, max 100
+        if len(str_num) == 5:
             secured = float(str_num[:2])
             maximum = float(str_num[2:])
             if maximum > 0:
                 return (secured / maximum) * 100.0
-        elif len(str_num) == 6:  # e.g., 120120 -> score 120, max 120
+        elif len(str_num) == 6:
             secured = float(str_num[:3])
             maximum = float(str_num[3:])
             if maximum > 0:
                 return (secured / maximum) * 100.0
-        elif len(str_num) == 4:  # e.g., 9590 -> typo or standard scaling
+        elif len(str_num) == 4:
             secured = float(str_num[:2])
             maximum = float(str_num[2:])
             if maximum > 0:
                 return (secured / maximum) * 100.0
 
-        # Fallback normal scaling if already separated or simple value
         if num > 100:
             return (num / 120.0) * 100.0
         return num
@@ -135,7 +124,6 @@ def load_and_process_data(url):
         else:
             df[col] = df[col].apply(parse_and_normalize_mark).fillna(0).round(2)
 
-    # Calculated Index Mark out of 300 (Sum of Physics, Chemistry, Biology out of 100 each)
     df["Calculated_Index_Mark"] = (
         df["Physics"] + df["Chemistry"] + df["Biology"]
     ).round(2)
@@ -168,14 +156,14 @@ if df is not None:
             unsafe_allow_html=True,
         )
         
-        # Truly centered side-by-side buttons
-        _, btn_col1, btn_col2, _ = st.columns([1, 4, 4, 1])
+        # Side-by-side horizontal option columns
+        col1, col2 = st.columns(2)
         
-        with btn_col1:
-            if st.button("📋 Accepted / Pending"):
+        with col1:
+            if st.button("📋 Accepted / Pending List"):
                 st.session_state.selected_view = "Accepted_Pending"
                 st.rerun()
-        with btn_col2:
+        with col2:
             if st.button("❌ Rejected List"):
                 st.session_state.selected_view = "Rejected"
                 st.rerun()
@@ -242,7 +230,20 @@ if df is not None:
             ]
             columns_to_show = [col for col in desired_columns if col in display_df.columns]
             
-            st.dataframe(display_df[columns_to_show], use_container_width=True, hide_index=True)
+            # Highlight pending rows in soft red
+            def highlight_pending(row_data):
+                idx = row_data.name
+                if idx in view_df.index:
+                    status_val = str(view_df.loc[idx, "Status"]).lower()
+                    if "pend" in status_val:
+                        return ["background-color: #FEE2E2"] * len(row_data)
+                return [""] * len(row_data)
+
+            try:
+                styled_table = display_df[columns_to_show].style.apply(highlight_pending, axis=1)
+                st.dataframe(styled_table, use_container_width=True, hide_index=True)
+            except Exception:
+                st.dataframe(display_df[columns_to_show], use_container_width=True, hide_index=True)
         else:
             st.info("No records available in this view.")
             
