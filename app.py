@@ -38,11 +38,11 @@ st.markdown(
         color: #FFFFFF !important;
         border-color: #000000 !important;
     }
-    .row-widget.stHorizontal {
-        display: flex !important;
-        flex-direction: row !important;
-        justify-content: center !important;
-        align-items: center !important;
+    /* Force vertical stacking for category selection buttons everywhere */
+    [data-testid="column"] {
+        width: 100% !important;
+        flex: 100% !important;
+        min-width: 100% !important;
     }
     .legend-box {
         background-color: #FEF2F2;
@@ -160,12 +160,15 @@ if df is not None:
             unsafe_allow_html=True,
         )
         
-        col1, col2 = st.columns(2, gap="medium")
+        # Stacked vertically layout
+        col1 = st.columns(1)[0]
         with col1:
             if st.button("📋 Accepted / Pending List"):
                 st.session_state.selected_view = "Accepted_Pending"
                 st.rerun()
-        with col2:
+            
+            st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+            
             if st.button("❌ Rejected List"):
                 st.session_state.selected_view = "Rejected"
                 st.rerun()
@@ -227,9 +230,7 @@ if df is not None:
             ]
             columns_to_show = [col for col in desired_columns if col in display_df.columns]
             
-            # Highlight entire row background for pending applicants
             def highlight_entire_pending_row(row):
-                # Check status from the underlying view_df based on Application No
                 app_no = row["Application No"]
                 match = view_df[view_df["Application No"] == app_no]
                 if not match.empty:
