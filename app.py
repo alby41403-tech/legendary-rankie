@@ -24,16 +24,17 @@ st.markdown(
         border-bottom: 3px solid #DC2626;
         padding-bottom: 1rem;
     }
-    .stButton>button {
+    /* Stable side-by-side buttons fix to prevent fluctuation */
+    div.stButton > button {
         background-color: #000000 !important;
         color: #FFFFFF !important;
         font-weight: 700 !important;
         border-radius: 8px !important;
         padding: 0.75rem 1rem !important;
         border: 2px solid #DC2626 !important;
-        width: 100%;
+        width: 100% !important;
     }
-    .stButton>button:hover {
+    div.stButton > button:hover {
         background-color: #DC2626 !important;
         color: #FFFFFF !important;
         border-color: #000000 !important;
@@ -156,8 +157,8 @@ if df is not None:
             unsafe_allow_html=True,
         )
         
-        # Side-by-side horizontal option columns
-        col1, col2 = st.columns(2)
+        # Stable side-by-side columns
+        col1, col2 = st.columns(2, gap="medium")
         
         with col1:
             if st.button("📋 Accepted / Pending List"):
@@ -230,7 +231,6 @@ if df is not None:
             ]
             columns_to_show = [col for col in desired_columns if col in display_df.columns]
             
-            # Highlight pending rows in soft red
             def highlight_pending(row_data):
                 idx = row_data.name
                 if idx in view_df.index:
@@ -247,3 +247,4 @@ if df is not None:
         else:
             st.info("No records available in this view.")
             
+        
