@@ -24,6 +24,7 @@ st.markdown(
         border-bottom: 3px solid #DC2626;
         padding-bottom: 1rem;
     }
+    /* Centered side-by-side buttons styling */
     .stButton>button {
         background-color: #000000 !important;
         color: #FFFFFF !important;
@@ -32,6 +33,7 @@ st.markdown(
         padding: 0.75rem 1.5rem !important;
         border: 2px solid #DC2626 !important;
         width: 100%;
+        transition: all 0.3s ease;
     }
     .stButton>button:hover {
         background-color: #DC2626 !important;
@@ -67,7 +69,6 @@ def load_and_process_data(url):
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip()
 
-    # Carefully rename only unmapped columns by position or safe keywords to prevent duplicates
     new_cols = []
     seen = set()
     for col in df.columns:
@@ -86,7 +87,6 @@ def load_and_process_data(url):
         elif "board" in c_lower and "Board" not in seen:
             target = "Board"
         
-        # Ensure uniqueness
         base_target = target
         counter = 1
         while target in seen:
@@ -101,17 +101,35 @@ def load_and_process_data(url):
         if col not in df.columns:
             df[col] = 0.0
         else:
-            df[col] = pd.to_numeric(
-                df[col].astype(str).str.replace(r"[^\d.]", "", regex=True),
-                errors="coerce",
-            ).fillna(0)
+            def clean_score(val):
+                s_val = str(val).strip()
+                if len(s_val) >= 6 and s_val.isdigit():
+                    mid = len(s_val) // 2
+                    try:
+                        return float(s_val[:mid])
+                    except:
+                        pass
+                cleaned = "".join([c for c in s_val if c.isdigit() or c == '.'])
+                try:
+                    return float(cleaned)
+                except:
+                    return 0.0
 
-    df["Converted_Bio"] = (df["Biology"] / 120.0) * 100
-    df["Converted_Phy"] = (df["Physics"] / 120.0) * 100
-    df["Converted_Chem"] = (df["Chemistry"] / 120.0) * 100
+            df[col] = df[col].apply(clean_score).fillna(0)
 
+    # Conversion rule: If any marks are out of 120, convert them to out of 100. Otherwise treat them as out of 100.
+    def convert_mark(val):
+        if val > 100:
+            return (val / 120.0) * 100.0
+        return val
+
+    df["Converted_Phy"] = df["Physics"].apply(convert_mark)
+    df["Converted_Chem"] = df["Chemistry"].apply(convert_mark)
+    df["Converted_Bio"] = df["Biology"].apply(convert_mark)
+
+    # Index mark out of 300 (Sum of Physics, Chemistry, Biology out of 100 each)
     df["Calculated_Index_Mark"] = (
-        df["Converted_Bio"] + df["Converted_Phy"] + df["Converted_Chem"]
+        df["Converted_Phy"] + df["Converted_Chem"] + df["Converted_Bio"]
     ).round(2)
     
     df = df.sort_values(
@@ -140,12 +158,15 @@ if df is not None:
         st.markdown(
             "### Please select a category below to view the respective applicant list:"
         )
-        col1, col2 = st.columns(2)
-        with col1:
+        
+        # Centered side-by-side columns
+        _, center_col1, center_col2, _ = st.columns([0.5, 4, 4, 0.5])
+        
+        with center_col1:
             if st.button("📋 Accepted / Pending List"):
                 st.session_state.selected_view = "Accepted_Pending"
                 st.rerun()
-        with col2:
+        with center_col2:
             if st.button("❌ Rejected List"):
                 st.session_state.selected_view = "Rejected"
                 st.rerun()
@@ -217,5 +238,4 @@ if df is not None:
             st.dataframe(display_df[columns_to_show], use_container_width=True, hide_index=True)
         else:
             st.info("No records available in this view.")
-            
             
