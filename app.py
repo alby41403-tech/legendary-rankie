@@ -24,12 +24,19 @@ st.markdown(
         border-bottom: 3px solid #DC2626;
         padding-bottom: 1rem;
     }
+    /* Force horizontal side-by-side buttons even on mobile screens */
+    .row-widget.stHorizontal {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: center !important;
+        align-items: center !important;
+    }
     .stButton>button {
         background-color: #000000 !important;
         color: #FFFFFF !important;
         font-weight: 700 !important;
         border-radius: 8px !important;
-        padding: 0.75rem 1.5rem !important;
+        padding: 0.75rem 1rem !important;
         border: 2px solid #DC2626 !important;
         width: 100%;
     }
@@ -67,7 +74,6 @@ def load_and_process_data(url):
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip()
 
-    # Explicit column remapping to avoid duplicates
     col_map = {}
     for col in df.columns:
         c_lower = col.lower()
@@ -86,39 +92,50 @@ def load_and_process_data(url):
 
     df = df.rename(columns=col_map)
 
-    # Clean mark values securely
+    # Correct parser for concatenated numbers like 97100 (97 out of 100) or 120120 (120 out of 120)
+    def parse_and_normalize_mark(val):
+        s_val = str(val).strip()
+        cleaned = "".join([c for c in s_val if c.isdigit() or c == '.'])
+        if not cleaned:
+            return 0.0
+        
+        try:
+            num = float(cleaned)
+        except:
+            return 0.0
+
+        # If the number is concatenated (e.g., 5 digits like 97100 or 6 digits like 120120)
+        # We split it neatly into secured score and total denominator base
+        str_num = str(int(num)) if num.is_integer() else str(num)
+        
+        if len(str_num) == 5:  # e.g., 97100 -> score 97, max 100
+            secured = float(str_num[:2])
+            maximum = float(str_num[2:])
+            if maximum > 0:
+                return (secured / maximum) * 100.0
+        elif len(str_num) == 6:  # e.g., 120120 -> score 120, max 120
+            secured = float(str_num[:3])
+            maximum = float(str_num[3:])
+            if maximum > 0:
+                return (secured / maximum) * 100.0
+        elif len(str_num) == 4:  # e.g., 9590 -> typo or standard scaling
+            secured = float(str_num[:2])
+            maximum = float(str_num[2:])
+            if maximum > 0:
+                return (secured / maximum) * 100.0
+
+        # Fallback normal scaling if already separated or simple value
+        if num > 100:
+            return (num / 120.0) * 100.0
+        return num
+
     for col in ["Biology", "Physics", "Chemistry"]:
         if col not in df.columns:
             df[col] = 0.0
         else:
-            def clean_score(val):
-                s_val = str(val).strip()
-                # Handle merged numbers like 120120
-                if len(s_val) >= 6 and s_val.isdigit():
-                    mid = len(s_val) // 2
-                    try:
-                        return float(s_val[:mid])
-                    except:
-                        pass
-                cleaned = "".join([c for c in s_val if c.isdigit() or c == '.'])
-                try:
-                    return float(cleaned)
-                except:
-                    return 0.0
+            df[col] = df[col].apply(parse_and_normalize_mark).fillna(0).round(2)
 
-            df[col] = df[col].apply(clean_score).fillna(0)
-
-    # Convert marks to 100 scale if they were entered out of 120
-    def normalize_mark(val):
-        if val > 100:
-            return (val / 120.0) * 100.0
-        return val
-
-    df["Physics"] = df["Physics"].apply(normalize_mark)
-    df["Chemistry"] = df["Chemistry"].apply(normalize_mark)
-    df["Biology"] = df["Biology"].apply(normalize_mark)
-
-    # Calculated Index Mark out of 300
+    # Calculated Index Mark out of 300 (Sum of Physics, Chemistry, Biology out of 100 each)
     df["Calculated_Index_Mark"] = (
         df["Physics"] + df["Chemistry"] + df["Biology"]
     ).round(2)
@@ -147,17 +164,18 @@ if df is not None:
 
     if st.session_state.selected_view is None:
         st.markdown(
-            "### Please select a category below to view the respective applicant list:"
+            '<div style="text-align: center; font-weight: 600; margin-bottom: 15px;">Please select a category below to view the respective applicant list:</div>',
+            unsafe_allow_html=True,
         )
         
-        # Perfectly centered horizontal buttons layout
-        _, center_col1, center_col2, _ = st.columns([1, 3, 3, 1])
+        # Truly centered side-by-side buttons
+        _, btn_col1, btn_col2, _ = st.columns([1, 4, 4, 1])
         
-        with center_col1:
-            if st.button("📋 Accepted / Pending List"):
+        with btn_col1:
+            if st.button("📋 Accepted / Pending"):
                 st.session_state.selected_view = "Accepted_Pending"
                 st.rerun()
-        with center_col2:
+        with btn_col2:
             if st.button("❌ Rejected List"):
                 st.session_state.selected_view = "Rejected"
                 st.rerun()
@@ -212,7 +230,6 @@ if df is not None:
         st.markdown(f"**Total records displayed:** {len(display_df)}")
 
         if not display_df.empty:
-            # Enforce exact requested column order
             desired_columns = [
                 "S. No",
                 "Application No",
@@ -228,4 +245,4 @@ if df is not None:
             st.dataframe(display_df[columns_to_show], use_container_width=True, hide_index=True)
         else:
             st.info("No records available in this view.")
-        
+            
