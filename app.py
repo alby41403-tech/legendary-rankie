@@ -24,7 +24,6 @@ st.markdown(
         border-bottom: 3px solid #DC2626;
         padding-bottom: 1rem;
     }
-    /* Centered side-by-side buttons styling */
     .stButton>button {
         background-color: #000000 !important;
         color: #FFFFFF !important;
@@ -33,7 +32,6 @@ st.markdown(
         padding: 0.75rem 1.5rem !important;
         border: 2px solid #DC2626 !important;
         width: 100%;
-        transition: all 0.3s ease;
     }
     .stButton>button:hover {
         background-color: #DC2626 !important;
@@ -69,40 +67,33 @@ def load_and_process_data(url):
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip()
 
-    new_cols = []
-    seen = set()
+    # Explicit column remapping to avoid duplicates
+    col_map = {}
     for col in df.columns:
         c_lower = col.lower()
-        target = col
-        if "bio" in c_lower and "Biology" not in seen:
-            target = "Biology"
-        elif "phy" in c_lower and "Physics" not in seen:
-            target = "Physics"
-        elif "chem" in c_lower and "Chemistry" not in seen:
-            target = "Chemistry"
-        elif ("app" in c_lower or "application" in c_lower) and "Application No" not in seen:
-            target = "Application No"
-        elif "name" in c_lower and "Name" not in seen:
-            target = "Name"
-        elif "board" in c_lower and "Board" not in seen:
-            target = "Board"
-        
-        base_target = target
-        counter = 1
-        while target in seen:
-            target = f"{base_target}_{counter}"
-            counter += 1
-        seen.add(target)
-        new_cols.append(target)
+        if "bio" in c_lower and "Biology" not in col_map.values():
+            col_map[col] = "Biology"
+        elif "phy" in c_lower and "Physics" not in col_map.values():
+            col_map[col] = "Physics"
+        elif "chem" in c_lower and "Chemistry" not in col_map.values():
+            col_map[col] = "Chemistry"
+        elif ("app" in c_lower or "application" in c_lower) and "Application No" not in col_map.values():
+            col_map[col] = "Application No"
+        elif "name" in c_lower and "Name" not in col_map.values():
+            col_map[col] = "Name"
+        elif "board" in c_lower and "Board" not in col_map.values():
+            col_map[col] = "Board"
 
-    df.columns = new_cols
+    df = df.rename(columns=col_map)
 
+    # Clean mark values securely
     for col in ["Biology", "Physics", "Chemistry"]:
         if col not in df.columns:
             df[col] = 0.0
         else:
             def clean_score(val):
                 s_val = str(val).strip()
+                # Handle merged numbers like 120120
                 if len(s_val) >= 6 and s_val.isdigit():
                     mid = len(s_val) // 2
                     try:
@@ -117,19 +108,19 @@ def load_and_process_data(url):
 
             df[col] = df[col].apply(clean_score).fillna(0)
 
-    # Conversion rule: If any marks are out of 120, convert them to out of 100. Otherwise treat them as out of 100.
-    def convert_mark(val):
+    # Convert marks to 100 scale if they were entered out of 120
+    def normalize_mark(val):
         if val > 100:
             return (val / 120.0) * 100.0
         return val
 
-    df["Converted_Phy"] = df["Physics"].apply(convert_mark)
-    df["Converted_Chem"] = df["Chemistry"].apply(convert_mark)
-    df["Converted_Bio"] = df["Biology"].apply(convert_mark)
+    df["Physics"] = df["Physics"].apply(normalize_mark)
+    df["Chemistry"] = df["Chemistry"].apply(normalize_mark)
+    df["Biology"] = df["Biology"].apply(normalize_mark)
 
-    # Index mark out of 300 (Sum of Physics, Chemistry, Biology out of 100 each)
+    # Calculated Index Mark out of 300
     df["Calculated_Index_Mark"] = (
-        df["Converted_Phy"] + df["Converted_Chem"] + df["Converted_Bio"]
+        df["Physics"] + df["Chemistry"] + df["Biology"]
     ).round(2)
     
     df = df.sort_values(
@@ -159,8 +150,8 @@ if df is not None:
             "### Please select a category below to view the respective applicant list:"
         )
         
-        # Centered side-by-side columns
-        _, center_col1, center_col2, _ = st.columns([0.5, 4, 4, 0.5])
+        # Perfectly centered horizontal buttons layout
+        _, center_col1, center_col2, _ = st.columns([1, 3, 3, 1])
         
         with center_col1:
             if st.button("📋 Accepted / Pending List"):
@@ -221,21 +212,20 @@ if df is not None:
         st.markdown(f"**Total records displayed:** {len(display_df)}")
 
         if not display_df.empty:
-            columns_to_show = [
-                col
-                for col in [
-                    "S. No",
-                    "Application No",
-                    "Name",
-                    "Board",
-                    "Biology",
-                    "Physics",
-                    "Chemistry",
-                    "Calculated_Index_Mark",
-                ]
-                if col in display_df.columns
+            # Enforce exact requested column order
+            desired_columns = [
+                "S. No",
+                "Application No",
+                "Name",
+                "Board",
+                "Biology",
+                "Physics",
+                "Chemistry",
+                "Calculated_Index_Mark",
             ]
+            columns_to_show = [col for col in desired_columns if col in display_df.columns]
+            
             st.dataframe(display_df[columns_to_show], use_container_width=True, hide_index=True)
         else:
             st.info("No records available in this view.")
-            
+        
