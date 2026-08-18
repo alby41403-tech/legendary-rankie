@@ -1,9 +1,8 @@
 import pandas as pd
 import streamlit as st
-import traceback
 
 st.set_page_config(
-    page_title="Self-Healing Nursing Rank List",
+    page_title="Nursing Rank List",
     page_icon="🩺",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -39,6 +38,13 @@ st.markdown(
         color: #FFFFFF !important;
         border-color: #000000 !important;
     }
+    /* Force horizontal side-by-side layout for category buttons */
+    .row-widget.stHorizontal {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: center !important;
+        align-items: center !important;
+    }
     .legend-box {
         background-color: #FEF2F2;
         border-left: 4px solid #DC2626;
@@ -47,15 +53,6 @@ st.markdown(
         font-size: 0.9rem;
         color: #7F1D1D;
         border-radius: 4px;
-    }
-    .healing-banner {
-        background-color: #F0FDF4;
-        border: 1px solid #22C55E;
-        color: #166534;
-        padding: 10px;
-        border-radius: 6px;
-        margin-bottom: 15px;
-        font-size: 0.85rem;
     }
     </style>
 """,
@@ -66,26 +63,22 @@ if "selected_view" not in st.session_state:
     st.session_state.selected_view = None
 
 st.markdown(
-    '<div class="main-header">🩺 Self-Healing Nursing Rank List</div>', unsafe_allow_html=True
+    '<div class="main-header">🩺 Nursing Rank List</div>', unsafe_allow_html=True
 )
 
 CSV_URL = "https://raw.githubusercontent.com/alby41403-tech/legendary-rankie/refs/heads/main/j_msyjho6h2bi8surb3b.csv"
 
-# Autonomous Self-Healing Pipeline Engine
 @st.cache_data
 def self_healing_data_pipeline(url):
     healing_actions = []
     try:
         df = pd.read_csv(url)
     except Exception as e:
-        healing_actions.append(f"Critical load failure from source: {e}. Falling back to default synthetic schema.")
-        # Fallback schema self-healing wrapper
+        healing_actions.append(f"Critical load failure: {e}")
         df = pd.DataFrame(columns=["Application No", "Name", "Board", "Biology", "Physics", "Chemistry", "Status"])
 
-    # Clean column spacing
     df.columns = df.columns.str.strip()
 
-    # Self-healing mapping for structural schema deviations
     col_map = {}
     expected_targets = {"Biology": "bio", "Physics": "phy", "Chemistry": "chem", "Application No": "app", "Name": "name", "Board": "board", "Status": "status"}
     
@@ -98,10 +91,8 @@ def self_healing_data_pipeline(url):
     if col_map:
         df = df.rename(columns=col_map)
 
-    # Auto-patch missing core columns dynamically
     for target in ["Application No", "Name", "Board", "Biology", "Physics", "Chemistry", "Status"]:
         if target not in df.columns:
-            healing_actions.append(f"Auto-patched missing structural column: '{target}' initialized with safe defaults.")
             if target in ["Biology", "Physics", "Chemistry"]:
                 df[target] = 0.0
             elif target == "Status":
@@ -109,7 +100,6 @@ def self_healing_data_pipeline(url):
             else:
                 df[target] = "N/A"
 
-    # Self-healing parser for messy or concatenated mark records
     def parse_and_normalize_mark(val):
         s_val = str(val).strip()
         cleaned = "".join([c for c in s_val if c.isdigit() or c == '.'])
@@ -156,12 +146,11 @@ def self_healing_data_pipeline(url):
     df["S. No"] = range(1, len(df) + 1)
     return df, healing_actions
 
-with st.spinner("Executing autonomous self-healing data pipeline..."):
+with st.spinner("Loading records..."):
     df, logs = self_healing_data_pipeline(CSV_URL)
 
-# Display real-time self-healing audit logs for hackathon transparency
 if logs:
-    with st.expander("🛡️ Autonomous Self-Healing Audit Trail (Active Patches)", expanded=False):
+    with st.expander("🛡️ Autonomous Self-Healing Audit Trail", expanded=False):
         for log in logs:
             st.markdown(f"- 🔧 {log}")
 
@@ -172,6 +161,7 @@ if df is not None:
             unsafe_allow_html=True,
         )
         
+        # Horizontal side-by-side columns
         col1, col2 = st.columns(2, gap="medium")
         with col1:
             if st.button("📋 Accepted / Pending List"):
@@ -191,7 +181,7 @@ if df is not None:
             st.markdown(
                 """
                 <div class="legend-box">
-                    <strong>🔴 Color Legend Notice:</strong> Rows highlighted in <span style="color: #DC2626; font-weight: bold;">Soft Red</span> indicate applicants whose status is currently <strong>Pending</strong>.
+                    <strong>🔴 Color Legend Notice:</strong> Rows outlined with a <span style="color: #DC2626; font-weight: bold;">Soft Red Border</span> indicate applicants whose status is currently <strong>Pending</strong>.
                 </div>
             """,
                 unsafe_allow_html=True,
@@ -206,8 +196,10 @@ if df is not None:
             ]
 
         st.markdown("---")
+        # Search input with placeholder text inside
         search_query = st.text_input(
-            "🔍 Enter Application Number to look up specific standing:"
+            label="",
+            placeholder="🔍 Enter your application number"
         )
 
         if search_query:
@@ -238,16 +230,17 @@ if df is not None:
             ]
             columns_to_show = [col for col in desired_columns if col in display_df.columns]
             
-            def highlight_pending(row_data):
+            # Highlight pending rows with soft red borders instead of blocking background fill
+            def highlight_pending_border(row_data):
                 idx = row_data.name
                 if idx in view_df.index:
                     status_val = str(view_df.loc[idx, "Status"]).lower()
                     if "pend" in status_val:
-                        return ["background-color: #FEE2E2"] * len(row_data)
+                        return ["border-left: 4px solid #DC2626; border-right: 4px solid #DC2626;"] * len(row_data)
                 return [""] * len(row_data)
 
             try:
-                styled_table = display_df[columns_to_show].style.apply(highlight_pending, axis=1)
+                styled_table = display_df[columns_to_show].style.apply(highlight_pending_border, axis=1)
                 st.dataframe(styled_table, use_container_width=True, hide_index=True)
             except Exception:
                 st.dataframe(display_df[columns_to_show], use_container_width=True, hide_index=True)
