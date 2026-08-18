@@ -1,7 +1,6 @@
 import pandas as pd
 import streamlit as st
 
-# Configure the Streamlit page
 st.set_page_config(
     page_title="Nursing Rank List",
     page_icon="🩺",
@@ -9,7 +8,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# Custom Royal Theme CSS (Black, White, and Red)
 st.markdown(
     """
     <style>
@@ -67,12 +65,42 @@ CSV_URL = "https://raw.githubusercontent.com/alby41403-tech/legendary-rankie/ref
 @st.cache_data
 def load_and_process_data(url):
     df = pd.read_csv(url)
-    df.columns = df.columns.str.strip()
-    mark_cols = ["Biology", "Physics", "Chemistry"]
-    for col in mark_cols:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
+    # Clean whitespace from column headers
+    df.columns = df.columns.str.strip()
+
+    # Flexible matching for columns
+    rename_dict = {}
+    for col in df.columns:
+        c_lower = col.lower()
+        if "bio" in c_lower:
+            rename_dict[col] = "Biology"
+        elif "phy" in c_lower:
+            rename_dict[col] = "Physics"
+        elif "chem" in c_lower:
+            rename_dict[col] = "Chemistry"
+        elif "app" in c_lower:
+            rename_dict[col] = "Application No"
+        elif "name" in c_lower:
+            rename_dict[col] = "Name"
+        elif "board" in c_lower:
+            rename_dict[col] = "Board"
+        elif "index" in c_lower:
+            rename_dict[col] = "Original Index"
+
+    df = df.rename(columns=rename_dict)
+
+    # Ensure required mark columns exist
+    for col in ["Biology", "Physics", "Chemistry"]:
+        if col not in df.columns:
+            df[col] = 0.0
+        else:
+            df[col] = pd.to_numeric(
+                df[col].astype(str).str.replace(r"[^\d.]", "", regex=True),
+                errors="coerce",
+            ).fillna(0)
+
+    # Calculate index mark out of 300
     df["Converted_Bio"] = (df["Biology"] / 120.0) * 100
     df["Converted_Phy"] = (df["Physics"] / 120.0) * 100
     df["Converted_Chem"] = (df["Chemistry"] / 120.0) * 100
@@ -91,14 +119,16 @@ with st.spinner("Loading and processing national rank list records..."):
     df = load_and_process_data(CSV_URL)
 
 if df is not None:
-    status_column_name = None
-    for col in df.columns:
-        if "status" in col.lower():
-            status_column_name = col
-            break
-
-    if not status_column_name:
-        df["Status"] = "Accepted"
+    if "Status" not in df.columns:
+        # Check if any status-like column exists
+        found_status = False
+        for col in df.columns:
+            if "status" in col.lower():
+                df["Status"] = df[col]
+                found_status = True
+                break
+        if not found_status:
+            df["Status"] = "Accepted"
 
     if st.session_state.selected_view is None:
         st.markdown(
@@ -192,4 +222,6 @@ if df is not None:
         else:
             st.info("No records available in this view.")
             
-          
+                
+
+        
